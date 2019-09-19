@@ -1,14 +1,19 @@
 package ru.justlink.postback;
 
-import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
+import static ru.justlink.postback.PostbackApplication.Parameter.AIM;
+import static ru.justlink.postback.PostbackApplication.Parameter.CODE;
+import static ru.justlink.postback.PostbackApplication.Parameter.USER_ID;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -20,6 +25,7 @@ import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,10 +42,10 @@ public class PostbackApplication {
 
   private final JdbcOperations jdbcOperations;
 
-  private final RowMapper<List<String>> rowMapper;
+  private final RowMapper<Map<Parameter, String>> rowMapper;
 
   public PostbackApplication(
-    JdbcOperations jdbcOperations, RowMapper<List<String>> rowMapper) {
+    JdbcOperations jdbcOperations, RowMapper<Map<Parameter, String>> rowMapper) {
     this.jdbcOperations = jdbcOperations;
     this.rowMapper = rowMapper;
   }
@@ -49,22 +55,60 @@ public class PostbackApplication {
   }
 
   @RequestMapping(value = "/{source}", method = {GET, POST})
-  public ResponseEntity consume(@PathVariable String source,
-    @RequestParam Map<String, String> parameters) {
-    List<String> parameterNames = jdbcOperations
-      .queryForObject("select * from mapping where source = ?", rowMapper, source);
-    assert parameterNames != null;
-    if (!parameters.keySet().containsAll(parameterNames)) {
-      parameterNames.removeAll(parameters.keySet());
-      String message = "Not enough parameters: " + String.join(", ", parameterNames);
+  public ResponseEntity consume(
+    @PathVariable String source,
+    @RequestParam Map<String, String> parameters
+  ) {
+    // example CODE -> click_id, left -> our standard values, right -> parameters name by client
+    Map<Parameter, String> mappingParameters = extractParameterNames(source);
+
+    if (!parameters.keySet().containsAll(mappingParameters.values())) {
+      Collection<String> values = new ArrayList<>(mappingParameters.values());
+      values.removeAll(parameters.keySet());
+      String message = "Not enough parameters: " + String.join(", ", values);
       return ResponseEntity.badRequest().body(message);
     }
-    List<String> parameterValues = parameterNames.stream().map(parameters::get).collect(toList());
+    List<Object> parameterValues = computeParameterValues(parameters, mappingParameters);
+    savePostbackRecord(source, parameterValues);
+    return ResponseEntity.ok().build();
+  }
+
+  private void savePostbackRecord(
+    @PathVariable String source,
+    List<Object> parameterValues) {
     parameterValues.add(source);
     Object[] arg = parameterValues.toArray();
     jdbcOperations
       .update("insert into postback(user_id, code, aim, source) values (?, ? , ?, ?)", arg);
-    return ResponseEntity.ok().build();
+  }
+
+  private List<Object> computeParameterValues(
+    Map<String, String> parameters,
+    Map<Parameter, String> parameterNames
+  ) {
+    return parameterNames.entrySet()
+      .stream()
+      .map(entry -> {
+        Parameter parameterType = entry.getKey();
+        String parameterName = entry.getValue();
+        String parameterValue = parameters.get(parameterName);
+        switch (parameterType) {
+          case AIM:
+            switch (parameterValue) {
+              case "reg" : return 0;
+              case "dep" : return 1;
+              case "dep_without_reg" : return 2;
+              default: throw new IllegalArgumentException("Unknown value for parameter <goal>");
+            }
+          default: return parameterValue;
+        }
+      }).collect(toList());
+  }
+
+  @NonNull
+  private Map<Parameter, String> extractParameterNames(String source) {
+    return jdbcOperations
+      .queryForObject("select * from mapping where source = ?", rowMapper, source);
   }
 
   @ExceptionHandler(IncorrectResultSizeDataAccessException.class)
@@ -78,15 +122,27 @@ public class PostbackApplication {
     log.error(ex.getMessage(), ex);
   }
 
+  @ExceptionHandler(IllegalArgumentException.class)
+  @ResponseStatus(BAD_REQUEST)
+  public String handler(IllegalArgumentException ex) {
+    return ex.getMessage();
+  }
+
+  enum Parameter {
+    USER_ID,
+    CODE,
+    AIM
+  }
+
   @Component
-  static class Mapper implements RowMapper<List<String>> {
+  static class Mapper implements RowMapper<Map<Parameter, String>> {
 
     @Override
-    public List<String> mapRow(ResultSet rs, int rowNum) throws SQLException {
-      return asList(
-        rs.getString("user_id"),
-        rs.getString("code"),
-        rs.getString("aim")
+    public Map<Parameter, String> mapRow(ResultSet rs, int rowNum) throws SQLException {
+      return Map.of(
+        USER_ID, rs.getString("user_id"),
+        CODE, rs.getString("code"),
+        AIM, rs.getString("aim")
       );
     }
   }
