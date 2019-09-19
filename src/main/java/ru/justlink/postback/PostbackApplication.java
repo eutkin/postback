@@ -1,8 +1,11 @@
 package ru.justlink.postback;
 
 import static java.util.Arrays.asList;
+import static java.util.stream.Collectors.toList;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import static org.springframework.web.bind.annotation.RequestMethod.POST;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -19,8 +22,8 @@ import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,7 +48,7 @@ public class PostbackApplication {
     SpringApplication.run(PostbackApplication.class, args);
   }
 
-  @GetMapping("/{source}")
+  @RequestMapping(value = "/{source}", method = {GET, POST})
   public ResponseEntity consume(@PathVariable String source,
     @RequestParam Map<String, String> parameters) {
     List<String> parameterNames = jdbcOperations
@@ -56,8 +59,11 @@ public class PostbackApplication {
       String message = "Not enough parameters: " + String.join(", ", parameterNames);
       return ResponseEntity.badRequest().body(message);
     }
-    Object[] args = parameterNames.stream().map(parameters::get).toArray();
-    jdbcOperations.update("insert into postback(user_id, code, aim) values (?, ? ,?)", args);
+    List<String> parameterValues = parameterNames.stream().map(parameters::get).collect(toList());
+    parameterValues.add(source);
+    Object[] arg = parameterValues.toArray();
+    jdbcOperations
+      .update("insert into postback(user_id, code, aim, source) values (?, ? , ?, ?)", arg);
     return ResponseEntity.ok().build();
   }
 

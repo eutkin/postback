@@ -1,11 +1,10 @@
 create table postback
 (
-    id      bigserial primary key,
-    source  varchar(100) not null references mapping (source),
+    id      int identity primary key,
     user_id varchar(100),
     aim     smallint,
     code    varchar(100),
-    created timestamp    not null default current_timestamp
+    created timestamp
 );
 
 create table mapping
