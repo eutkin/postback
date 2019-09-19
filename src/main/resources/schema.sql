@@ -1,3 +1,12 @@
+create table mapping
+(
+    source  varchar(100) not null primary key,
+    aim     varchar(30)  not null,
+    user_id varchar(30)  not null,
+    code    varchar(30)  not null
+);
+
+
 create table postback
 (
     id      bigserial primary key,
@@ -8,10 +17,3 @@ create table postback
     created timestamp    not null default current_timestamp
 );
 
-create table mapping
-(
-    source  varchar(100) not null primary key,
-    aim     varchar(30)  not null,
-    user_id varchar(30)  not null,
-    code    varchar(30)  not null
-);
