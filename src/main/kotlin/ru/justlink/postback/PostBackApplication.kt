@@ -78,12 +78,14 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
             throw IllegalArgumentException("Empty file")
         }
         val header = scanner.nextLine()
+        log.info(header)
         jdbc.execute(ConnectionCallback<Long> { connection ->
             try {
                 val pgConn: PGConnection = connection.unwrap(PGConnection::class.java)
                 val sql = "copy mapping ($header) from stdin (format csv, header, delimiter ',') "
                 pgConn.copyAPI.copyIn(sql, csv.inputStream)
             } catch (ex: SQLException) {
+                log.error(ex.message, ex)
                 throw UnsupportedOperationException(ex)
             }
         })
