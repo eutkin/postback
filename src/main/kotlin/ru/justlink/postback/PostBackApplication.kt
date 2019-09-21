@@ -66,9 +66,9 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
 
     @PostMapping(path = ["/api/mapping"])
     fun insertMapping(@RequestBody csv: ByteArrayResource) {
+        jdbc.execute(ConnectionCallback { c -> log.info(c.javaClass.canonicalName) })
         jdbc.execute(ConnectionCallback<Long> { connection ->
             if (connection is org.postgresql.jdbc.PgConnection) {
-                log.info(csv.toString())
                 val sql = "copy mapping from stdin (format csv, header, delimiter ',') "
                 connection.copyAPI.copyIn(sql, csv.inputStream)
             } else {
