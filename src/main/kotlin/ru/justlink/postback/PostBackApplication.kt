@@ -63,10 +63,11 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
 
     }
 
-    @PostMapping("/api/mapping", consumes = [APPLICATION_OCTET_STREAM_VALUE])
+    @PostMapping(path = ["/api/mapping"], consumes = [APPLICATION_OCTET_STREAM_VALUE])
     fun insertMapping(csv: Resource) {
         jdbc.execute(ConnectionCallback<Long> { connection ->
             if (connection is org.postgresql.jdbc.PgConnection) {
+                log.info(csv.toString())
                 val sql = "copy mapping from stdin (format csv, header, delimiter ',') "
                 connection.copyAPI.copyIn(sql, csv.inputStream)
             } else {
@@ -81,7 +82,8 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
 
     @ExceptionHandler(IncorrectResultSizeDataAccessException::class)
     @ResponseStatus(NOT_FOUND)
-    fun handlerNotFound() {}
+    fun handlerNotFound() {
+    }
 
     @ExceptionHandler(DataAccessException::class)
     @ResponseStatus(INTERNAL_SERVER_ERROR)
