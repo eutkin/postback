@@ -1,6 +1,6 @@
 create table mapping
 (
-    source  varchar(100) not null primary key,
+    client_name  varchar(100) not null primary key,
     aim     varchar(30)  not null,
     user_id varchar(30)  not null,
     code    varchar(30)  not null
@@ -10,7 +10,7 @@ create table mapping
 create table postback
 (
     id      bigserial primary key,
-    source  varchar(100) not null references mapping (source),
+    client_name  varchar(100) not null references mapping (client_name),
     user_id varchar(100),
     aim     smallint,
     code    varchar(100),

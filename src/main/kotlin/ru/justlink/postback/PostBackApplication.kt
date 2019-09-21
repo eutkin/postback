@@ -44,10 +44,10 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
         Parameter.values().map { it to rs.getString(it.name) }.toMap()
     }
 
-    @RequestMapping(path = ["/api/{source}"], method = [RequestMethod.POST, RequestMethod.GET])
-    fun consume(@PathVariable source: String, @RequestParam parameters: Map<String, String>) {
+    @RequestMapping(path = ["/api/{clientName}"], method = [RequestMethod.POST, RequestMethod.GET])
+    fun consume(@PathVariable clientName: String, @RequestParam parameters: Map<String, String>) {
         val parametersMapping: Map<Parameter, String> = jdbc
-                .queryForObject("select * from mapping where source = ?", rowMapper, source)!!
+                .queryForObject("select * from mapping where client_name = ?", rowMapper, clientName)!!
 
         if (!parameters.keys.containsAll(parametersMapping.values)) {
             val missingParameters = parametersMapping.values.minus(parameters.keys).joinToString(", ")
@@ -63,11 +63,11 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
                     }
                     value
                 }
-                .plus(source)
+                .plus(clientName)
                 .toTypedArray()
 
         val columns = Parameter.values().joinToString { ", " }
-        jdbc.update("insert into postback($columns, source) values (?, ?, ?, ?)", arg)
+        jdbc.update("insert into postback($columns, client_name) values (?, ?, ?, ?)", arg)
 
     }
 
