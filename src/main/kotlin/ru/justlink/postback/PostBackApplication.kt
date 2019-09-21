@@ -1,5 +1,7 @@
 package ru.justlink.postback
 
+import org.postgresql.PGConnection
+import org.postgresql.jdbc.PgConnection
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.SpringBootApplication
@@ -17,6 +19,7 @@ import org.springframework.jdbc.core.RowMapper
 import org.springframework.web.bind.annotation.*
 import java.lang.UnsupportedOperationException
 import java.sql.Connection
+import java.sql.SQLException
 
 enum class Parameter {
     USER_ID, CODE, AIM
@@ -68,18 +71,20 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
     fun insertMapping(@RequestBody csv: ByteArrayResource) {
         jdbc.execute(ConnectionCallback { c -> log.info(c.javaClass.canonicalName) })
         jdbc.execute(ConnectionCallback<Long> { connection ->
-            if (connection is org.postgresql.jdbc.PgConnection) {
+            try {
+                val pgConn: PGConnection = connection.unwrap(PGConnection::class.java)
                 val sql = "copy mapping from stdin (format csv, header, delimiter ',') "
-                connection.copyAPI.copyIn(sql, csv.inputStream)
-            } else {
-                throw UnsupportedOperationException()
+                pgConn.copyAPI.copyIn(sql, csv.inputStream)
+            } catch (ex: SQLException) {
+                throw UnsupportedOperationException(ex)
             }
         })
     }
 
     @ExceptionHandler(UnsupportedOperationException::class)
     @ResponseStatus(NOT_IMPLEMENTED)
-    fun handlerUnsupported() {}
+    fun handlerUnsupported() {
+    }
 
     @ExceptionHandler(IncorrectResultSizeDataAccessException::class)
     @ResponseStatus(NOT_FOUND)
