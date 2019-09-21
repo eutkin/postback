@@ -16,10 +16,14 @@ import org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE
 import org.springframework.jdbc.core.ConnectionCallback
 import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.jdbc.core.RowMapper
+import org.springframework.util.FileCopyUtils
+import org.springframework.util.StreamUtils
 import org.springframework.web.bind.annotation.*
+import java.io.InputStreamReader
 import java.lang.UnsupportedOperationException
 import java.sql.Connection
 import java.sql.SQLException
+import java.util.*
 
 enum class Parameter {
     USER_ID, CODE, AIM
@@ -69,11 +73,15 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
 
     @PostMapping(path = ["/api/mapping"])
     fun insertMapping(@RequestBody csv: ByteArrayResource) {
-        jdbc.execute(ConnectionCallback { c -> log.info(c.javaClass.canonicalName) })
+        val scanner = Scanner(csv.inputStream)
+        if (!scanner.hasNextLine()) {
+            throw IllegalArgumentException("Empty file")
+        }
+        val header = scanner.nextLine()
         jdbc.execute(ConnectionCallback<Long> { connection ->
             try {
                 val pgConn: PGConnection = connection.unwrap(PGConnection::class.java)
-                val sql = "copy mapping from stdin (format csv, header, delimiter ',') "
+                val sql = "copy mapping ($header) from stdin (format csv, header, delimiter ',') "
                 pgConn.copyAPI.copyIn(sql, csv.inputStream)
             } catch (ex: SQLException) {
                 throw UnsupportedOperationException(ex)
