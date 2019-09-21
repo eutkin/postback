@@ -36,7 +36,7 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
         Parameter.values().map { it to rs.getString(it.name) }.toMap()
     }
 
-    @RequestMapping(path = ["/{source}"], method = [RequestMethod.POST, RequestMethod.GET])
+    @RequestMapping(path = ["/api/post/{source}"], method = [RequestMethod.POST, RequestMethod.GET])
     fun consume(@PathVariable source: String, @RequestParam parameters: Map<String, String>) {
         val parametersMapping: Map<Parameter, String> = jdbc
                 .queryForObject("select * from mapping where source = ?", rowMapper, source)!!
