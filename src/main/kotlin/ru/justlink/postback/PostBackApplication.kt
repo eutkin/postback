@@ -23,6 +23,7 @@ enum class Parameter {
 }
 
 @SpringBootApplication
+@RestController
 open class PostBackApplication(private val jdbc: JdbcOperations) {
 
     private val log: Logger = LoggerFactory.getLogger(PostBackApplication::class.java)
@@ -36,7 +37,7 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
         Parameter.values().map { it to rs.getString(it.name) }.toMap()
     }
 
-    @RequestMapping(path = ["/api/post/{source}"], method = [RequestMethod.POST, RequestMethod.GET])
+    @RequestMapping(path = ["/api/{source}"], method = [RequestMethod.POST, RequestMethod.GET])
     fun consume(@PathVariable source: String, @RequestParam parameters: Map<String, String>) {
         val parametersMapping: Map<Parameter, String> = jdbc
                 .queryForObject("select * from mapping where source = ?", rowMapper, source)!!
@@ -63,8 +64,8 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
 
     }
 
-    @PostMapping(path = ["/api/mapping"], consumes = [APPLICATION_OCTET_STREAM_VALUE])
-    fun insertMapping(csv: Resource) {
+    @PostMapping(path = ["/api/mapping"])
+    fun insertMapping(@RequestBody csv: ByteArrayResource) {
         jdbc.execute(ConnectionCallback<Long> { connection ->
             if (connection is org.postgresql.jdbc.PgConnection) {
                 log.info(csv.toString())
