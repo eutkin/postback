@@ -4,12 +4,19 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
+import org.springframework.core.io.ByteArrayResource
+import org.springframework.core.io.Resource
 import org.springframework.dao.DataAccessException
 import org.springframework.dao.IncorrectResultSizeDataAccessException
 import org.springframework.http.HttpStatus.*
+import org.springframework.http.MediaType
+import org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE
+import org.springframework.jdbc.core.ConnectionCallback
 import org.springframework.jdbc.core.JdbcOperations
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.web.bind.annotation.*
+import java.lang.UnsupportedOperationException
+import java.sql.Connection
 
 enum class Parameter {
     USER_ID, CODE, AIM
@@ -18,7 +25,7 @@ enum class Parameter {
 @SpringBootApplication
 open class PostBackApplication(private val jdbc: JdbcOperations) {
 
-    private val log : Logger = LoggerFactory.getLogger(PostBackApplication::class.java)
+    private val log: Logger = LoggerFactory.getLogger(PostBackApplication::class.java)
 
     private val rowMapper = RowMapper<Map<Parameter, String>> { rs, _ ->
         /* for example:
@@ -56,10 +63,25 @@ open class PostBackApplication(private val jdbc: JdbcOperations) {
 
     }
 
+    @PostMapping("/api/mapping", consumes = [APPLICATION_OCTET_STREAM_VALUE])
+    fun insertMapping(csv: Resource) {
+        jdbc.execute(ConnectionCallback<Long> { connection ->
+            if (connection is org.postgresql.jdbc.PgConnection) {
+                val sql = "copy mapping from stdin (format csv, header, delimiter ',') "
+                connection.copyAPI.copyIn(sql, csv.inputStream)
+            } else {
+                throw UnsupportedOperationException()
+            }
+        })
+    }
+
+    @ExceptionHandler(UnsupportedOperationException::class)
+    @ResponseStatus(NOT_IMPLEMENTED)
+    fun handlerUnsupported() {}
+
     @ExceptionHandler(IncorrectResultSizeDataAccessException::class)
     @ResponseStatus(NOT_FOUND)
-    fun handler() {
-    }
+    fun handlerNotFound() {}
 
     @ExceptionHandler(DataAccessException::class)
     @ResponseStatus(INTERNAL_SERVER_ERROR)
